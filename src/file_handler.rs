@@ -34,6 +34,7 @@ impl Iterator for BinaryData {
 }
 
 pub fn download_binary(url: &String) -> Result<BinaryData, Box<dyn Error>> {
+    println!("Download binary from {url}");
     let body = reqwest::blocking::get(url)?;
     match body.status() {
         StatusCode::OK => {
