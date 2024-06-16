@@ -3,12 +3,12 @@ use bytes::Bytes;
 use reqwest::StatusCode;
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BinaryData {
     pub data: Bytes,
     pub last_bytes_index: u16,
 }
-// TODO: Implement BinaryData default value
+
 impl Iterator for BinaryData {
     type Item = Bytes;
 

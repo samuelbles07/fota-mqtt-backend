@@ -1,5 +1,6 @@
 use crate::file_handler::BinaryData;
 use bytes::Bytes;
+use rand::Rng;
 use std::collections::HashMap;
 
 #[allow(dead_code)]
@@ -36,22 +37,24 @@ impl JobScheduler {
         }
     }
 
-    // TODO: jobid generator
     pub fn add_job(&mut self, device_id: String, url: String) {
+        let job_id = Self::generate_job_id();
         self.jobs.insert(
-            123,
+            job_id,
             Job {
-                job_id: 123,
+                job_id,
                 device_id,
                 status: JobStatus::OnQueue,
                 url,
-                image: BinaryData {
-                    data: Bytes::new(),
-                    last_bytes_index: 0,
-                },
+                image: BinaryData::default(),
             },
         );
 
         println!("added job {:#?}", self.jobs.get(&123));
+    }
+
+    fn generate_job_id() -> u16 {
+        let mut rng = rand::thread_rng();
+        rng.gen_range(1000..=9999)
     }
 }
