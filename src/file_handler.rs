@@ -3,6 +3,8 @@ use bytes::Bytes;
 use reqwest::StatusCode;
 use std::error::Error;
 
+const CHUNK_SIZE: u16 = 5;
+
 #[derive(Debug, Default)]
 pub struct BinaryData {
     pub data: Bytes,
@@ -13,17 +15,17 @@ impl Iterator for BinaryData {
     type Item = Bytes;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: packet size from configuration
-        let until = if self.last_bytes_index + 5 < self.data.len() as u16 {
-            self.last_bytes_index + 5
-        } else {
-            self.last_bytes_index + (self.data.len() as u16 - self.last_bytes_index)
-        };
-
-        if until >= self.data.len() as u16 {
-            self.last_bytes_index = self.data.len() as u16;
+        if self.last_bytes_index >= self.data.len() as u16 {
+            // No more data
             return None;
         }
+
+        let until = if self.last_bytes_index + CHUNK_SIZE < self.data.len() as u16 {
+            self.last_bytes_index + CHUNK_SIZE
+        } else {
+            // Get the last diff data
+            self.last_bytes_index + (self.data.len() as u16 - self.last_bytes_index)
+        };
 
         let data = self
             .data
@@ -46,29 +48,4 @@ pub fn download_binary(url: &String) -> Result<BinaryData, Box<dyn Error>> {
         }
         s => return Err(Box::new(CustomError::HttpRequest(s.as_u16()))),
     }
-
-    // match body.status() {
-    //     StatusCode::OK => {
-    //         let result = body.bytes()?;
-    //         Ok(result)
-    //     }
-    //     s => Err(Box::new(CustomError::HttpRequest(s.as_u16()))),
-    // }
-    //
-    // let mut mydata = file_handler::BinaryData {
-    //     data: Bytes::new(),
-    //     last_bytes_index: 0,
-    // };
-    //
-    // match result {
-    //     Ok(data) => mydata.data = Bytes::from(data),
-    //     Err(err) => {
-    //         println!("Error: {err}");
-    //         std::process::exit(1);
-    //     }
-    // };
-
-    // for val in mydata {
-    //     println!("{val:?}");
-    // }
 }
