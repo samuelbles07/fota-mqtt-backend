@@ -150,6 +150,7 @@ impl JobScheduler {
 
     fn process_job(&mut self, job_id: u16) {
         let Some(job) = self.jobs.get_mut(&job_id) else {
+            // TODO: Return custom error
             // return Err(CustomError::StartJob(format!(
             //     "No job in hashmap with id {}",
             //     job_id
@@ -157,7 +158,16 @@ impl JobScheduler {
             return;
         };
 
-        println!("data of {} => {:?}", job_id, job.image.next());
+        match job.image.next() {
+            Some(chunk) => println!("data of {} => {:?}", job_id, chunk),
+            None => {
+                println!("Job {job_id} finish");
+                // remove job from running list and change job status on hashmap
+                job.status = JobStatus::Success;
+                // job.status = JobStatus::Failed;
+                self.running.remove(self.last_running_job_index.into());
+            }
+        }
     }
 
     fn get_next_job(&mut self) -> Option<u16> {
