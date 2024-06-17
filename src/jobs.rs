@@ -67,6 +67,8 @@ impl JobScheduler {
         );
 
         loop {
+            // TODO: Here receive new job
+
             // Start job from on_queue job list if running list not in max number
             if self.running.len() < MAX_RUNNING_JOB {
                 if let Err(msg) = self.start_job_onqueue() {
@@ -76,14 +78,16 @@ impl JobScheduler {
             }
 
             // Give cpu/thread some breath when no job in running status
-            let Some(next_job) = self.get_next_job() else {
+            let Some(next_job_id) = self.get_next_job() else {
                 println!("No running job exists");
                 thread::sleep(time::Duration::from_secs(1));
                 // thread::sleep(time::Duration::from_millis(100));
                 continue;
             };
 
-            println!("Next Job: {next_job}");
+            println!("Next Job: {next_job_id}");
+            self.process_job(next_job_id);
+
             thread::sleep(time::Duration::from_secs(1));
         }
     }
@@ -142,6 +146,18 @@ impl JobScheduler {
                 Err(CustomError::StartJob(String::from("Failed download")))
             }
         }
+    }
+
+    fn process_job(&mut self, job_id: u16) {
+        let Some(job) = self.jobs.get_mut(&job_id) else {
+            // return Err(CustomError::StartJob(format!(
+            //     "No job in hashmap with id {}",
+            //     job_id
+            // )));
+            return;
+        };
+
+        println!("data of {} => {:?}", job_id, job.image.next());
     }
 
     fn get_next_job(&mut self) -> Option<u16> {
