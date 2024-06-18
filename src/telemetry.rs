@@ -41,7 +41,7 @@ pub fn build_command(
     cmd: CommandType,
 ) -> Result<Telemetry, Box<dyn Error>> {
     // Format topic
-    let topic: String = format!("/fota/cmd/backend/{device_id}");
+    let topic: String = format!("/fota/cmd/{device_id}");
 
     // Encode payload to cbor
     let payload: CommandPayload = (job_id, cmd.value());
@@ -56,7 +56,7 @@ pub fn build_command(
 
 pub fn build_packet(device_id: &String, chunk_id: u16, chunk: bytes::Bytes) -> Telemetry {
     // Format topic
-    let topic: String = format!("/fota/data/backend/{device_id}/{chunk_id}");
+    let topic: String = format!("/fota/data/{device_id}/{chunk_id}");
     Telemetry {
         topic,
         payload: chunk.to_vec(),
