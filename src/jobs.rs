@@ -1,10 +1,14 @@
 use crate::custom_error::CustomError;
 use crate::file_handler::{download_binary, BinaryData};
+use crate::messenger::Messenger;
+use crate::telemetry::{self, Telemetry};
 use bytes::Bytes;
 use core::time;
 use rand::Rng;
 use reqwest::StatusCode;
 use std::error::Error;
+use std::sync::mpsc;
+use std::time::Duration;
 use std::{
     collections::{HashMap, VecDeque},
     thread,
@@ -18,6 +22,7 @@ enum JobStatus {
     Success,
     Failed,
     InProgress,
+    Starting,
     OnQueue,
 }
 
@@ -38,16 +43,22 @@ pub struct JobScheduler {
     jobs: HashMap<JobId, Job>,
     on_queue: VecDeque<JobId>,
     running: Vec<JobId>,
-    last_running_job_index: u8,
+    starting_job: Option<JobId>,
+    last_running_job_index: u8, // TODO: Change this type
+    messenger: Messenger,
+    notification: mpsc::Receiver<Telemetry>,
 }
 
 impl JobScheduler {
-    pub fn new() -> Self {
+    pub fn new(messenger: Messenger, notification: mpsc::Receiver<Telemetry>) -> Self {
         Self {
             jobs: HashMap::new(),
-            running: Vec::new(),
             on_queue: VecDeque::new(),
+            running: Vec::new(),
+            starting_job: None,
             last_running_job_index: 0,
+            messenger,
+            notification,
         }
     }
 
@@ -58,18 +69,11 @@ impl JobScheduler {
             "http://localhost:7777/bin/tes.txt".to_string(),
         );
 
-        self.add_job(
-            "device2".to_string(),
-            "http://localhost:7777/bin/test2.txt".to_string(),
-        );
-
-        self.add_job(
-            "device3".to_string(),
-            "http://localhost:7777/bin/test3.txt".to_string(),
-        );
-
         loop {
             // TODO: Here receive new job
+            if let Ok(notif) = self.notification.recv_timeout(Duration::from_millis(100)) {
+                self.handle_notification(notif);
+            }
 
             // Start job from on_queue job list if running list not in max number
             if self.running.len() < MAX_RUNNING_JOB {
@@ -115,18 +119,36 @@ impl JobScheduler {
     fn start_job_onqueue(&mut self) -> Result<(), CustomError> {
         // Get job that still on queue.
         // Only get reference since, needs to process it first before removing it from the queue
-        let Some(job_id) = self.on_queue.front() else {
+        let Some(job_id) = self.on_queue.pop_front() else {
             return Err(CustomError::StartJob(String::from(
                 "No job that still OnQueue",
             )));
         };
 
         // Try to get job data (as mutable reference) to be modified later
-        let Some(job) = self.jobs.get_mut(job_id) else {
+        let Some(job) = self.jobs.get_mut(&job_id) else {
             return Err(CustomError::StartJob(format!(
                 "No job in hashmap with id {}",
                 job_id
             )));
+        };
+
+        let tosend =
+            telemetry::build_command(job_id, &job.device_id, telemetry::CommandType::OtaRequest)
+                .unwrap(); // TODO: handle error
+        let _ = self.messenger.send(tosend);
+
+        // Set the job as starting, also change the status on the real data
+        self.starting_job = Some(job_id);
+        job.status = JobStatus::Starting;
+
+        Ok(())
+    }
+
+    fn start_job(&mut self, job_id: JobId) {
+        // Try to get job data (as mutable reference) to be modified later
+        let Some(job) = self.jobs.get_mut(&job_id) else {
+            return; // TODO: Better error
         };
 
         // Attempt to download the binary from url provided
@@ -136,16 +158,16 @@ impl JobScheduler {
                 job.image = data;
                 // Add the job to running index list
                 self.running.push(job_id.clone());
-                // Remove the job from on_queue index list
-                _ = self.on_queue.remove(0);
+                // Reset starting job to empty
+                self.starting_job = None;
                 // Change the actual job data status to in progres
                 job.status = JobStatus::InProgress;
-                Ok(())
+                // Ok(())
             }
             Err(msg) => {
                 // TODO: Remove from queue?
-                println!("{msg}");
-                Err(CustomError::StartJob(String::from("Failed download")))
+                println!("job_id: {job_id} => {msg}");
+                // Err(CustomError::StartJob(String::from("Failed download")))
             }
         }
     }
@@ -161,7 +183,9 @@ impl JobScheduler {
         };
 
         match job.image.next() {
-            Some(chunk) => println!("data of {} => {:?}", job_id, chunk),
+            Some(chunk) => {
+                println!("data of {} => {:?}", job_id, chunk);
+            }
             None => {
                 println!("Job {job_id} finish");
                 // remove job from running list and change job status on hashmap
@@ -190,6 +214,18 @@ impl JobScheduler {
         // Use the next index, keep the index to last variable
         self.last_running_job_index = idx;
         Some(value.clone())
+    }
+
+    fn handle_notification(&mut self, notif: Telemetry) {
+        let parsed = telemetry::parse(notif).unwrap(); // TODO: handle error
+
+        if let Some(starting_job) = self.starting_job {
+            if parsed.0 == starting_job {
+                self.start_job(starting_job);
+            }
+        }
+
+        // TODO: Handle finishing job
     }
 
     fn generate_job_id() -> JobId {
