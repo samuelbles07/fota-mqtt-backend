@@ -21,10 +21,12 @@ enum JobStatus {
     OnQueue,
 }
 
+pub type JobId = u16;
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Job {
-    job_id: u16, // TODO: Change type to jobId own type
+    job_id: JobId,
     device_id: String,
     status: JobStatus,
     url: String,
@@ -33,9 +35,9 @@ pub struct Job {
 
 #[allow(dead_code)]
 pub struct JobScheduler {
-    jobs: HashMap<u16, Job>,
-    on_queue: VecDeque<u16>,
-    running: Vec<u16>,
+    jobs: HashMap<JobId, Job>,
+    on_queue: VecDeque<JobId>,
+    running: Vec<JobId>,
     last_running_job_index: u8,
 }
 
@@ -148,7 +150,7 @@ impl JobScheduler {
         }
     }
 
-    fn process_job(&mut self, job_id: u16) {
+    fn process_job(&mut self, job_id: JobId) {
         let Some(job) = self.jobs.get_mut(&job_id) else {
             // TODO: Return custom error
             // return Err(CustomError::StartJob(format!(
@@ -170,7 +172,7 @@ impl JobScheduler {
         }
     }
 
-    fn get_next_job(&mut self) -> Option<u16> {
+    fn get_next_job(&mut self) -> Option<JobId> {
         // Return directly when running job list is empty
         if self.running.len() == 0 {
             return None;
@@ -190,7 +192,7 @@ impl JobScheduler {
         Some(value.clone())
     }
 
-    fn generate_job_id() -> u16 {
+    fn generate_job_id() -> JobId {
         let mut rng = rand::thread_rng();
         rng.gen_range(1000..=9999)
     }
