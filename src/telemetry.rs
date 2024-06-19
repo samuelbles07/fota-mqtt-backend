@@ -28,7 +28,7 @@ impl From<u8> for CommandType {
             0x04 => Self::OtaDone,
             0x05 => Self::OtaDoneSuccess,
             0x06 => Self::OtaDoneFailed,
-            _ => Self::OtaRequest, // What?
+            _ => Self::OtaRequest, // TODO: what is the default?
         }
     }
 }
@@ -48,19 +48,29 @@ pub fn build_command(
     let mut buff = Vec::new();
     ciborium::ser::into_writer(&payload, &mut buff)?;
 
-    Ok(Telemetry {
+    // Build telemetry data
+    let payload = Telemetry {
         topic,
         payload: buff,
-    })
+    };
+    debug!("Payload: {payload:?}");
+
+    Ok(payload)
 }
 
+/// No cbor encoding happen for chunks data, because it already in bytes
 pub fn build_packet(device_id: &String, chunk_id: u16, chunk: bytes::Bytes) -> Telemetry {
     // Format topic
     let topic: String = format!("/fota/data/{device_id}/{chunk_id}");
-    Telemetry {
+
+    // Build telemetry data
+    let payload = Telemetry {
         topic,
         payload: chunk.to_vec(),
-    }
+    };
+    trace!("{payload:?}");
+
+    payload
 }
 
 pub fn parse(tlm: Telemetry) -> Result<(JobId, CommandType), Box<dyn Error>> {
@@ -68,5 +78,7 @@ pub fn parse(tlm: Telemetry) -> Result<(JobId, CommandType), Box<dyn Error>> {
     // TODO: Define type later either command or chunk. If not for command directly return
 
     let deserialized: CommandPayload = ciborium::de::from_reader(&mut Cursor::new(tlm.payload))?;
-    Ok((deserialized.0, CommandType::from(deserialized.1)))
+    let parsed = (deserialized.0, CommandType::from(deserialized.1));
+    debug!("Parsed notification: {:?}", parsed);
+    Ok(parsed)
 }

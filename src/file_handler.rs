@@ -16,7 +16,7 @@ impl Iterator for BinaryData {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.last_bytes_index >= self.data.len() as u16 {
-            // No more data
+            debug!("No more data of the image");
             return None;
         }
 
@@ -24,6 +24,7 @@ impl Iterator for BinaryData {
             self.last_bytes_index + CHUNK_SIZE
         } else {
             // Get the last diff data
+            debug!("Last image chunk");
             self.last_bytes_index + (self.data.len() as u16 - self.last_bytes_index)
         };
 
@@ -36,7 +37,7 @@ impl Iterator for BinaryData {
 }
 
 pub fn download_binary(url: &String) -> Result<BinaryData, Box<dyn Error>> {
-    println!("Download binary from {url}");
+    debug!("Download binary from {url}");
     let body = reqwest::blocking::get(url)?;
     match body.status() {
         StatusCode::OK => {

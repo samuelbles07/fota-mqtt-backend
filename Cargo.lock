@@ -55,6 +55,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "ciborium",
+ "log",
  "pretty_env_logger",
  "rand",
  "reqwest",

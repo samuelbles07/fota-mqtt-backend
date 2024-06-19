@@ -17,17 +17,21 @@ impl Messenger {
         mqtt_host: &str,
         mqtt_port: u16,
     ) -> Self {
+        // Configure mqtt connection
         let mut mqtt_options = MqttOptions::new(client_id, mqtt_host, mqtt_port);
         mqtt_options.set_keep_alive(Duration::from_secs(5));
         // TODO: Add last will if necessary later
 
+        // Initiate mqtt connection and run Connection handler on different thread
         let (client, connection) = Client::new(mqtt_options, 1);
         thread::spawn(move || Messenger::run_connection(connection, tx_notification));
 
+        // Subscribe to command response topic
         client
             .subscribe("/fota/cmd_resp/+", QoS::AtMostOnce) // TODO: Topic from other const
             .unwrap(); // TODO: Handle return result
 
+        info!("Messenger is running!");
         Self { mqttc: client }
     }
 
@@ -39,16 +43,10 @@ impl Messenger {
     }
 
     fn run_connection(mut connection: Connection, tx_notification: mpsc::Sender<Telemetry>) {
-        for (i, notification) in connection.iter().enumerate() {
+        for notification in connection.iter() {
             match notification {
-                Ok(event) => {
-                    // println!("{i}. Notification = {notif:?}");
-                    Messenger::handle_notification_event(event, &tx_notification);
-                }
-                Err(error) => {
-                    println!("{i}. Notification = {error:?}");
-                    return;
-                }
+                Ok(event) => Messenger::handle_notification_event(event, &tx_notification),
+                Err(error) => warn!("Event messaging error {error}"), // TODO: Need better handling
             }
         }
     }
@@ -64,10 +62,10 @@ impl Messenger {
                     topic: data.topic,
                     payload: data.payload.to_vec(),
                 };
-                println!("notification {:?}", notification);
+                info!("Incoming publish data: {:?}", notification);
                 _ = notif.send(notification);
             }
-            _ => return,
+            other => debug!("Incoming event {other:?}"),
         }
     }
 }
