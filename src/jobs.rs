@@ -1,10 +1,14 @@
 use crate::custom_error::CustomError;
 use crate::file_handler::{download_binary, BinaryData};
-use bytes::Bytes;
+use crate::messenger::Messenger;
+use crate::telemetry::{self, CommandType, Telemetry};
+// use bytes::Bytes;
 use core::time;
 use rand::Rng;
-use reqwest::StatusCode;
-use std::error::Error;
+// use reqwest::StatusCode;
+// use std::error::Error;
+use std::sync::mpsc;
+use std::time::Duration;
 use std::{
     collections::{HashMap, VecDeque},
     thread,
@@ -17,7 +21,9 @@ const MAX_RUNNING_JOB: usize = 3;
 enum JobStatus {
     Success,
     Failed,
+    Finishing,
     InProgress,
+    Starting,
     OnQueue,
 }
 
@@ -38,16 +44,24 @@ pub struct JobScheduler {
     jobs: HashMap<JobId, Job>,
     on_queue: VecDeque<JobId>,
     running: Vec<JobId>,
-    last_running_job_index: u8,
+    starting_job: Option<JobId>,
+    finishing_job: Option<JobId>,
+    last_running_job_index: u8, // TODO: Change this type
+    messenger: Messenger,
+    notification: mpsc::Receiver<Telemetry>,
 }
 
 impl JobScheduler {
-    pub fn new() -> Self {
+    pub fn new(messenger: Messenger, notification: mpsc::Receiver<Telemetry>) -> Self {
         Self {
             jobs: HashMap::new(),
-            running: Vec::new(),
             on_queue: VecDeque::new(),
+            running: Vec::new(),
+            starting_job: None,
+            finishing_job: None,
             last_running_job_index: 0,
+            messenger,
+            notification,
         }
     }
 
@@ -55,21 +69,14 @@ impl JobScheduler {
         // Just to simulate or testing purposes
         self.add_job(
             "device1".to_string(),
-            "http://localhost:7777/bin/tes.txt".to_string(),
-        );
-
-        self.add_job(
-            "device2".to_string(),
-            "http://localhost:7777/bin/test2.txt".to_string(),
-        );
-
-        self.add_job(
-            "device3".to_string(),
-            "http://localhost:7777/bin/test3.txt".to_string(),
+            "http://localhost:7777/bin/te1.txt".to_string(),
         );
 
         loop {
             // TODO: Here receive new job
+            if let Ok(notif) = self.notification.recv_timeout(Duration::from_millis(100)) {
+                self.handle_notification(notif);
+            }
 
             // Start job from on_queue job list if running list not in max number
             if self.running.len() < MAX_RUNNING_JOB {
@@ -81,7 +88,7 @@ impl JobScheduler {
 
             // Give cpu/thread some breath when no job in running status
             let Some(next_job_id) = self.get_next_job() else {
-                println!("No running job exists");
+                // println!("No running job exists");
                 thread::sleep(time::Duration::from_secs(1));
                 // thread::sleep(time::Duration::from_millis(100));
                 continue;
@@ -115,18 +122,36 @@ impl JobScheduler {
     fn start_job_onqueue(&mut self) -> Result<(), CustomError> {
         // Get job that still on queue.
         // Only get reference since, needs to process it first before removing it from the queue
-        let Some(job_id) = self.on_queue.front() else {
+        let Some(job_id) = self.on_queue.pop_front() else {
             return Err(CustomError::StartJob(String::from(
                 "No job that still OnQueue",
             )));
         };
 
         // Try to get job data (as mutable reference) to be modified later
-        let Some(job) = self.jobs.get_mut(job_id) else {
+        let Some(job) = self.jobs.get_mut(&job_id) else {
             return Err(CustomError::StartJob(format!(
                 "No job in hashmap with id {}",
                 job_id
             )));
+        };
+
+        // Send fota request command to target device
+        let tosend =
+            telemetry::build_command(job_id, &job.device_id, CommandType::OtaRequest).unwrap(); // TODO: handle error
+        let _ = self.messenger.send(tosend);
+
+        // Set the job as starting, also change the status on the real data
+        self.starting_job = Some(job_id);
+        job.status = JobStatus::Starting;
+
+        Ok(())
+    }
+
+    fn start_job(&mut self, job_id: JobId) {
+        // Try to get job data (as mutable reference) to be modified later
+        let Some(job) = self.jobs.get_mut(&job_id) else {
+            return; // TODO: Better error
         };
 
         // Attempt to download the binary from url provided
@@ -136,16 +161,15 @@ impl JobScheduler {
                 job.image = data;
                 // Add the job to running index list
                 self.running.push(job_id.clone());
-                // Remove the job from on_queue index list
-                _ = self.on_queue.remove(0);
+                // Reset starting job to empty
+                self.starting_job = None;
                 // Change the actual job data status to in progres
                 job.status = JobStatus::InProgress;
-                Ok(())
+                // Ok(())
             }
             Err(msg) => {
-                // TODO: Remove from queue?
-                println!("{msg}");
-                Err(CustomError::StartJob(String::from("Failed download")))
+                println!("job_id: {job_id} => {msg}");
+                self.failed_job(job_id, "download firmware binary failed");
             }
         }
     }
@@ -161,13 +185,27 @@ impl JobScheduler {
         };
 
         match job.image.next() {
-            Some(chunk) => println!("data of {} => {:?}", job_id, chunk),
+            Some(chunk) => {
+                // Send fota request command to target device
+                println!("data of {} => {:?}", job_id, chunk);
+                let tosend = telemetry::build_packet(&job.device_id, 123, chunk);
+                let _ = self.messenger.send(tosend); // TODO: Handle error
+            }
             None => {
-                println!("Job {job_id} finish");
+                if let Some(_) = self.finishing_job {
+                    println!("Currently there's still job in finishing status {job_id}");
+                    return;
+                };
+
+                // Finishing the job
+                println!("Finishing job {job_id}");
+                let tosend = telemetry::build_command(job_id, &job.device_id, CommandType::OtaDone);
+                let _ = self.messenger.send(tosend.unwrap());
                 // remove job from running list and change job status on hashmap
-                job.status = JobStatus::Success;
-                // job.status = JobStatus::Failed;
+                job.status = JobStatus::Finishing;
                 self.running.remove(self.last_running_job_index.into());
+                // Add the job to finishing job candidate
+                self.finishing_job = Some(job_id);
             }
         }
     }
@@ -190,6 +228,51 @@ impl JobScheduler {
         // Use the next index, keep the index to last variable
         self.last_running_job_index = idx;
         Some(value.clone())
+    }
+
+    fn failed_job(&mut self, job_id: JobId, reason: &str) {
+        let Some(job) = self.jobs.get_mut(&job_id) else {
+            return; // TODO: better error
+        };
+        job.status = JobStatus::Failed;
+        self.starting_job = None;
+        println!(
+            "Job {} for device_id {} failed ({})",
+            job_id, job.device_id, reason
+        );
+    }
+
+    fn handle_notification(&mut self, notif: Telemetry) {
+        let parsed = telemetry::parse(notif).unwrap(); // TODO: handle error
+
+        if let Some(starting_job) = self.starting_job {
+            if parsed.0 == starting_job {
+                match parsed.1 {
+                    CommandType::OtaRequestAck => self.start_job(starting_job),
+                    CommandType::OtaRequestNack => self.failed_job(starting_job, "request denied"),
+                    _ => return, // What happen here?,
+                }
+                return;
+            }
+        }
+
+        if let Some(finishing_job) = self.finishing_job {
+            if parsed.0 == finishing_job {
+                let Some(job) = self.jobs.get_mut(&finishing_job) else {
+                    return; // TODO: Better error
+                };
+
+                match parsed.1 {
+                    CommandType::OtaDoneSuccess => job.status = JobStatus::Success,
+                    CommandType::OtaDoneFailed => job.status = JobStatus::Failed,
+                    _ => return, // What happen here,
+                }
+
+                // Whatever the result, consider it finish
+                self.finishing_job = None;
+                println!("Job {} is {:?}", job.job_id, job.status);
+            }
+        }
     }
 
     fn generate_job_id() -> JobId {
