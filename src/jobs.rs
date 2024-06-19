@@ -42,11 +42,16 @@ pub struct JobScheduler {
     finishing_job: Option<JobId>,
     last_running_job_index: u8, // TODO: Change this type
     messenger: Messenger,
-    notification: mpsc::Receiver<Telemetry>,
+    notification: mpsc::Receiver<Telemetry>, // TODO: Change name to ch_notification
+    ch_new_job: mpsc::Receiver<String>,
 }
 
 impl JobScheduler {
-    pub fn new(messenger: Messenger, notification: mpsc::Receiver<Telemetry>) -> Self {
+    pub fn new(
+        messenger: Messenger,
+        notification: mpsc::Receiver<Telemetry>,
+        rx_channel: mpsc::Receiver<String>,
+    ) -> Self {
         Self {
             jobs: HashMap::new(),
             on_queue: VecDeque::new(),
@@ -56,18 +61,21 @@ impl JobScheduler {
             last_running_job_index: 0,
             messenger,
             notification,
+            ch_new_job: rx_channel,
         }
     }
 
-    pub fn run(&mut self) {
-        // Just to simulate or testing purposes
-        self.add_job(
-            "device1".to_string(),
-            "http://localhost:7777/bin/te1.txt".to_string(),
-        );
+    pub fn run(self) {
+        info!("Run jobs thread");
+        thread::spawn(move || self._run());
+    }
 
+    fn _run(mut self) {
         loop {
-            // TODO: Here receive new job
+            if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(100)) {
+                info!("Receive new job: {new_job}");
+            }
+
             if let Ok(notif) = self.notification.recv_timeout(Duration::from_millis(100)) {
                 self.handle_notification(notif);
             }
