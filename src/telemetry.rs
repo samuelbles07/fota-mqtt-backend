@@ -28,6 +28,7 @@ impl From<u8> for CommandType {
             0x04 => Self::OtaDone,
             0x05 => Self::OtaDoneSuccess,
             0x06 => Self::OtaDoneFailed,
+            _ => Self::OtaRequest, // What?
         }
     }
 }
