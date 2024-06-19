@@ -123,9 +123,8 @@ impl JobScheduler {
         // Get job that still on queue.
         // Only get reference since, needs to process it first before removing it from the queue
         let Some(job_id) = self.on_queue.pop_front() else {
-            return Err(CustomError::StartJob(String::from(
-                "No job that still OnQueue",
-            )));
+            debug!("No job in the queue");
+            return Ok(());
         };
 
         // Try to get job data (as mutable reference) to be modified later
