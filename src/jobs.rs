@@ -69,7 +69,7 @@ impl JobScheduler {
         // Just to simulate or testing purposes
         self.add_job(
             "device1".to_string(),
-            "http://localhost:7777/bin/tes.txt".to_string(),
+            "http://localhost:7777/bin/te1.txt".to_string(),
         );
 
         loop {
@@ -169,7 +169,7 @@ impl JobScheduler {
             }
             Err(msg) => {
                 println!("job_id: {job_id} => {msg}");
-                todo!("what to do when failed download binary?")
+                self.failed_job(job_id, "download firmware binary failed");
             }
         }
     }
@@ -230,6 +230,18 @@ impl JobScheduler {
         Some(value.clone())
     }
 
+    fn failed_job(&mut self, job_id: JobId, reason: &str) {
+        let Some(job) = self.jobs.get_mut(&job_id) else {
+            return; // TODO: better error
+        };
+        job.status = JobStatus::Failed;
+        self.starting_job = None;
+        println!(
+            "Job {} for device_id {} failed ({})",
+            job_id, job.device_id, reason
+        );
+    }
+
     fn handle_notification(&mut self, notif: Telemetry) {
         let parsed = telemetry::parse(notif).unwrap(); // TODO: handle error
 
@@ -237,11 +249,7 @@ impl JobScheduler {
             if parsed.0 == starting_job {
                 match parsed.1 {
                     CommandType::OtaRequestAck => self.start_job(starting_job),
-                    CommandType::OtaRequestNack => {
-                        todo!(
-                            "What to do if device deny ota request? it will be forever on starting"
-                        )
-                    }
+                    CommandType::OtaRequestNack => self.failed_job(starting_job, "request denied"),
                     _ => return, // What happen here?,
                 }
                 return;
