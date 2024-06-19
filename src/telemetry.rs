@@ -9,8 +9,9 @@ pub struct Telemetry {
 }
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum CommandType {
-    OtaRequest,
+    OtaRequest = 0x01,
     OtaRequestAck,
     OtaRequestNack,
     OtaDone,
@@ -18,22 +19,20 @@ pub enum CommandType {
     OtaDoneFailed,
 }
 
-type Command = u8;
-
-impl CommandType {
-    fn value(&self) -> Command {
-        match *self {
-            CommandType::OtaRequest => 0x01,
-            CommandType::OtaRequestAck => 0x02,
-            CommandType::OtaRequestNack => 0x03,
-            CommandType::OtaDone => 0x04,
-            CommandType::OtaDoneSuccess => 0x05,
-            CommandType::OtaDoneFailed => 0x06,
+impl From<u8> for CommandType {
+    fn from(value: u8) -> Self {
+        match value {
+            0x01 => Self::OtaRequest,
+            0x02 => Self::OtaRequestAck,
+            0x03 => Self::OtaRequestNack,
+            0x04 => Self::OtaDone,
+            0x05 => Self::OtaDoneSuccess,
+            0x06 => Self::OtaDoneFailed,
         }
     }
 }
 
-type CommandPayload = (JobId, Command);
+type CommandPayload = (JobId, u8); // u8 is CommandType as u8
 
 pub fn build_command(
     job_id: JobId,
@@ -44,7 +43,7 @@ pub fn build_command(
     let topic: String = format!("/fota/cmd/{device_id}");
 
     // Encode payload to cbor
-    let payload: CommandPayload = (job_id, cmd.value());
+    let payload: CommandPayload = (job_id, cmd as u8);
     let mut buff = Vec::new();
     ciborium::ser::into_writer(&payload, &mut buff)?;
 
@@ -63,10 +62,10 @@ pub fn build_packet(device_id: &String, chunk_id: u16, chunk: bytes::Bytes) -> T
     }
 }
 
-pub fn parse(tlm: Telemetry) -> Result<CommandPayload, Box<dyn Error>> {
+pub fn parse(tlm: Telemetry) -> Result<(JobId, CommandType), Box<dyn Error>> {
     // let topic_path: Vec<&str> = tlm.topic.split("/").collect();
     // TODO: Define type later either command or chunk. If not for command directly return
 
     let deserialized: CommandPayload = ciborium::de::from_reader(&mut Cursor::new(tlm.payload))?;
-    Ok(deserialized)
+    Ok((deserialized.0, CommandType::from(deserialized.1)))
 }
