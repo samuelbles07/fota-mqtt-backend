@@ -41,8 +41,11 @@ impl HTTPServer {
 
         // println!("{http_request:#?}");
         if request_line == "POST /job HTTP/1.1\r\n" {
-            self.handle_post_job(buf_reader);
-            let response = "HTTP/1.1 201 Created\r\n\r\n";
+            let response = if let Ok(_) = self.handle_post_job(buf_reader) {
+                String::from("HTTP/1.1 201 Created\r\n\r\n")
+            } else {
+                String::from("HTTP/1.1 400 Bad Request\r\n\r\n")
+            };
             stream.write_all(response.as_bytes()).unwrap();
         } else {
             // some other request
@@ -57,7 +60,10 @@ impl HTTPServer {
         }
     }
 
-    fn handle_post_job(&self, mut reader: BufReader<&mut TcpStream>) -> Result<(), String> {
+    fn handle_post_job(
+        &self,
+        mut reader: BufReader<&mut TcpStream>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Read header and get the content length
         let mut list_header: Vec<String> = Vec::new();
         let mut content_len: u32 = 0;
@@ -88,8 +94,14 @@ impl HTTPServer {
         debug!("content: {content}");
 
         match self.parse_content(content) {
-            Ok(job) => self.ch_new_job.send(job).unwrap(),
-            Err(err) => error!("{err}"), // TODO: Return error return 400 bad request
+            Ok(job) => {
+                self.ch_new_job.send(job).unwrap();
+                Ok(())
+            }
+            Err(err) => {
+                error!("{err}");
+                Err("Invalid request body")?
+            }
         }
     }
 
