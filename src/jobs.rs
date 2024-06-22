@@ -6,13 +6,14 @@ use core::time;
 use rand::Rng;
 use serde::Deserialize;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{
     collections::{HashMap, VecDeque},
     thread,
 };
 
 const MAX_RUNNING_JOB: usize = 3;
+const JOB_LOOP_INTERVAL: Duration = Duration::from_millis(150); // TODO: Change value as constant
 
 #[derive(Debug, PartialEq, Eq)]
 enum JobStatus {
@@ -78,6 +79,9 @@ impl JobScheduler {
     }
 
     fn _run(mut self) {
+        // Keep track of last job delay interval
+        let mut last_interval = Instant::now();
+
         loop {
             if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
                 info!("Receive new job: {new_job:?}");
@@ -107,8 +111,8 @@ impl JobScheduler {
             debug!("Next Job: {next_job_id}");
             self.process_job(next_job_id);
 
-            // thread::sleep(time::Duration::from_msecs(10));
-            thread::sleep(time::Duration::from_secs(1));
+            thread::sleep(JobScheduler::get_elapsed_delay_interval(last_interval));
+            last_interval = Instant::now();
         }
     }
 
@@ -290,6 +294,16 @@ impl JobScheduler {
                 info!("Job {} is {:?}", job.job_id, job.status);
             }
         }
+    }
+
+    fn get_elapsed_delay_interval(last_interval: Instant) -> Duration {
+        let elapsed = last_interval.elapsed();
+
+        if JOB_LOOP_INTERVAL <= elapsed {
+            return Duration::new(0, 0);
+        }
+
+        JOB_LOOP_INTERVAL - elapsed
     }
 
     fn generate_job_id() -> JobId {
