@@ -31,7 +31,7 @@ impl Messenger {
             .subscribe("/fota/cmd_resp/+", QoS::AtMostOnce) // TODO: Topic from other const
             .unwrap(); // TODO: Handle return result
 
-        info!("Messenger is running!");
+        info!("Messenger is running with connection handler in its own thread!");
         Self { mqttc: client }
     }
 

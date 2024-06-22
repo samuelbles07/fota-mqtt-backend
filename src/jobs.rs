@@ -4,6 +4,7 @@ use crate::messenger::Messenger;
 use crate::telemetry::{self, CommandType, Telemetry};
 use core::time;
 use rand::Rng;
+use serde::Deserialize;
 use std::sync::mpsc;
 use std::time::Duration;
 use std::{
@@ -34,6 +35,12 @@ pub struct Job {
     image: BinaryData,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct NewJob {
+    device_id: String,
+    url: String,
+}
+
 pub struct JobScheduler {
     jobs: HashMap<JobId, Job>,
     on_queue: VecDeque<JobId>,
@@ -42,11 +49,16 @@ pub struct JobScheduler {
     finishing_job: Option<JobId>,
     last_running_job_index: u8, // TODO: Change this type
     messenger: Messenger,
-    notification: mpsc::Receiver<Telemetry>,
+    ch_notification: mpsc::Receiver<Telemetry>, // TODO: Change name to ch_notification
+    ch_new_job: mpsc::Receiver<NewJob>,
 }
 
 impl JobScheduler {
-    pub fn new(messenger: Messenger, notification: mpsc::Receiver<Telemetry>) -> Self {
+    pub fn new(
+        messenger: Messenger,
+        rx_notification: mpsc::Receiver<Telemetry>,
+        rx_new_job: mpsc::Receiver<NewJob>,
+    ) -> Self {
         Self {
             jobs: HashMap::new(),
             on_queue: VecDeque::new(),
@@ -55,20 +67,24 @@ impl JobScheduler {
             finishing_job: None,
             last_running_job_index: 0,
             messenger,
-            notification,
+            ch_notification: rx_notification,
+            ch_new_job: rx_new_job,
         }
     }
 
-    pub fn run(&mut self) {
-        // Just to simulate or testing purposes
-        self.add_job(
-            "device1".to_string(),
-            "http://localhost:7777/bin/te1.txt".to_string(),
-        );
+    pub fn run(self) {
+        info!("Run jobs thread");
+        thread::spawn(move || self._run());
+    }
 
+    fn _run(mut self) {
         loop {
-            // TODO: Here receive new job
-            if let Ok(notif) = self.notification.recv_timeout(Duration::from_millis(100)) {
+            if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
+                info!("Receive new job: {new_job:?}");
+                self.add_job(new_job);
+            }
+
+            if let Ok(notif) = self.ch_notification.recv_timeout(Duration::from_millis(10)) {
                 self.handle_notification(notif);
             }
 
@@ -96,16 +112,16 @@ impl JobScheduler {
         }
     }
 
-    fn add_job(&mut self, device_id: String, url: String) {
+    fn add_job(&mut self, new_job: NewJob) {
         // Add new job to the on_queue list
         let job_id = Self::generate_job_id();
         self.jobs.insert(
             job_id,
             Job {
                 job_id,
-                device_id,
+                device_id: new_job.device_id,
                 status: JobStatus::OnQueue,
-                url,
+                url: new_job.url,
                 image: BinaryData::default(),
             },
         );
