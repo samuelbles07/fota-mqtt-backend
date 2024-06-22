@@ -4,14 +4,16 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+use crate::jobs::NewJob;
+
 #[derive(Debug)]
 pub struct HTTPServer {
     listener: TcpListener,
-    ch_new_job: mpsc::Sender<String>,
+    ch_new_job: mpsc::Sender<NewJob>,
 }
 
 impl HTTPServer {
-    pub fn new(host: &str, port: u16, tx_new_job: mpsc::Sender<String>) -> Self {
+    pub fn new(host: &str, port: u16, tx_new_job: mpsc::Sender<NewJob>) -> Self {
         let listener = TcpListener::bind(format!("{host}:{port}")).unwrap();
         info!("Bind {host} on port {port}");
         Self {
@@ -55,7 +57,7 @@ impl HTTPServer {
         }
     }
 
-    fn handle_post_job(&self, mut reader: BufReader<&mut TcpStream>) {
+    fn handle_post_job(&self, mut reader: BufReader<&mut TcpStream>) -> Result<(), String> {
         // Read header and get the content length
         let mut list_header: Vec<String> = Vec::new();
         let mut content_len: u32 = 0;
@@ -84,7 +86,16 @@ impl HTTPServer {
         reader.read_exact(&mut buf).unwrap();
         let content = String::from_utf8(buf).expect("Not a valid utf8");
         debug!("content: {content}");
-        self.ch_new_job.send(content).unwrap(); // TODO: Handle error
+
+        match self.parse_content(content) {
+            Ok(job) => self.ch_new_job.send(job).unwrap(),
+            Err(err) => error!("{err}"), // TODO: Return error return 400 bad request
+        }
+    }
+
+    fn parse_content(&self, content: String) -> Result<NewJob, serde_json::Error> {
+        let new_job: NewJob = serde_json::from_str(&content)?;
+        Ok(new_job)
     }
 
     fn get_content_length(&self, str: &str) -> u32 {

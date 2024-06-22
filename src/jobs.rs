@@ -4,6 +4,7 @@ use crate::messenger::Messenger;
 use crate::telemetry::{self, CommandType, Telemetry};
 use core::time;
 use rand::Rng;
+use serde::Deserialize;
 use std::sync::mpsc;
 use std::time::Duration;
 use std::{
@@ -34,6 +35,12 @@ pub struct Job {
     image: BinaryData,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct NewJob {
+    device_id: String,
+    url: String,
+}
+
 pub struct JobScheduler {
     jobs: HashMap<JobId, Job>,
     on_queue: VecDeque<JobId>,
@@ -43,14 +50,14 @@ pub struct JobScheduler {
     last_running_job_index: u8, // TODO: Change this type
     messenger: Messenger,
     ch_notification: mpsc::Receiver<Telemetry>, // TODO: Change name to ch_notification
-    ch_new_job: mpsc::Receiver<String>,
+    ch_new_job: mpsc::Receiver<NewJob>,
 }
 
 impl JobScheduler {
     pub fn new(
         messenger: Messenger,
         rx_notification: mpsc::Receiver<Telemetry>,
-        rx_new_job: mpsc::Receiver<String>,
+        rx_new_job: mpsc::Receiver<NewJob>,
     ) -> Self {
         Self {
             jobs: HashMap::new(),
@@ -73,7 +80,8 @@ impl JobScheduler {
     fn _run(mut self) {
         loop {
             if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
-                info!("Receive new job: {new_job}");
+                info!("Receive new job: {new_job:?}");
+                self.add_job(new_job);
             }
 
             if let Ok(notif) = self.ch_notification.recv_timeout(Duration::from_millis(10)) {
@@ -104,16 +112,16 @@ impl JobScheduler {
         }
     }
 
-    fn add_job(&mut self, device_id: String, url: String) {
+    fn add_job(&mut self, new_job: NewJob) {
         // Add new job to the on_queue list
         let job_id = Self::generate_job_id();
         self.jobs.insert(
             job_id,
             Job {
                 job_id,
-                device_id,
+                device_id: new_job.device_id,
                 status: JobStatus::OnQueue,
-                url,
+                url: new_job.url,
                 image: BinaryData::default(),
             },
         );

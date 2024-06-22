@@ -60,6 +60,8 @@ dependencies = [
  "rand",
  "reqwest",
  "rumqttc",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
