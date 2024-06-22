@@ -204,8 +204,6 @@ impl JobScheduler {
         match job.image.next() {
             Some(chunk) => {
                 // Send fota request command to target device
-                trace!("data of {} => {:?}", job_id, chunk);
-                let tosend = telemetry::build_packet(&job.device_id, 123, chunk);
                 debug!("data of {} => {:?}", job_id, job.image.last_bytes_index);
                 let tosend =
                     telemetry::build_packet(&job.device_id, job.image.last_bytes_index, chunk);
