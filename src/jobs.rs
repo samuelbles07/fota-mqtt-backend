@@ -12,8 +12,9 @@ use std::{
     thread,
 };
 
+// TODO: value from configuration
 const MAX_RUNNING_JOB: usize = 3;
-const JOB_LOOP_INTERVAL: Duration = Duration::from_millis(150); // TODO: Change value as constant
+const JOB_PROCESSED_INTERVAL: Duration = Duration::from_millis(200); // Expected process interval for job
 
 #[derive(Debug, PartialEq, Eq)]
 enum JobStatus {
@@ -34,6 +35,7 @@ pub struct Job {
     status: JobStatus,
     url: String,
     image: BinaryData,
+    last_time_processed: Instant,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,9 +81,6 @@ impl JobScheduler {
     }
 
     fn _run(mut self) {
-        // Keep track of last job delay interval
-        let mut last_interval = Instant::now();
-
         loop {
             if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
                 info!("Receive new job: {new_job:?}");
@@ -104,15 +103,13 @@ impl JobScheduler {
             let Some(next_job_id) = self.get_next_job() else {
                 debug!("No running job exists");
                 thread::sleep(time::Duration::from_secs(1));
-                // thread::sleep(time::Duration::from_millis(100));
                 continue;
             };
 
             debug!("Next Job: {next_job_id}");
             self.process_job(next_job_id);
 
-            thread::sleep(JobScheduler::get_elapsed_delay_interval(last_interval));
-            last_interval = Instant::now();
+            thread::sleep(Duration::from_millis(10)); // To give breath to the cpu
         }
     }
 
@@ -127,6 +124,7 @@ impl JobScheduler {
                 status: JobStatus::OnQueue,
                 url: new_job.url,
                 image: BinaryData::default(),
+                last_time_processed: Instant::now(),
             },
         );
 
@@ -182,6 +180,10 @@ impl JobScheduler {
                 // Change the actual job data status to in progres
                 job.status = JobStatus::InProgress;
                 info!("Job {job_id} now in progress");
+
+                // Set the last time job is processed
+                job.last_time_processed = Instant::now();
+
                 // Ok(())
             }
             Err(msg) => {
@@ -200,6 +202,13 @@ impl JobScheduler {
             // )));
             return;
         };
+
+        // Delay before process the next job when interval is not met yet
+        thread::sleep(JobScheduler::get_job_interval_delay(
+            job_id,
+            job.last_time_processed,
+        ));
+        job.last_time_processed = Instant::now(); // Set the new clock
 
         match job.image.next() {
             Some(chunk) => {
@@ -297,14 +306,21 @@ impl JobScheduler {
         }
     }
 
-    fn get_elapsed_delay_interval(last_interval: Instant) -> Duration {
+    fn get_job_interval_delay(job_id: JobId, last_interval: Instant) -> Duration {
         let elapsed = last_interval.elapsed();
 
-        if JOB_LOOP_INTERVAL <= elapsed {
+        if JOB_PROCESSED_INTERVAL <= elapsed {
+            warn!(
+                "Job id {} interval missed by {:?}",
+                job_id,
+                elapsed - JOB_PROCESSED_INTERVAL
+            );
             return Duration::new(0, 0);
         }
 
-        JOB_LOOP_INTERVAL - elapsed
+        let dur = JOB_PROCESSED_INTERVAL - elapsed;
+        debug!("Job id {} early by {:?}", job_id, dur);
+        dur
     }
 
     fn generate_job_id() -> JobId {
