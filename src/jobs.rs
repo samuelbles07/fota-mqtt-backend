@@ -42,15 +42,15 @@ pub struct JobScheduler {
     finishing_job: Option<JobId>,
     last_running_job_index: u8, // TODO: Change this type
     messenger: Messenger,
-    notification: mpsc::Receiver<Telemetry>, // TODO: Change name to ch_notification
+    ch_notification: mpsc::Receiver<Telemetry>, // TODO: Change name to ch_notification
     ch_new_job: mpsc::Receiver<String>,
 }
 
 impl JobScheduler {
     pub fn new(
         messenger: Messenger,
-        notification: mpsc::Receiver<Telemetry>,
-        rx_channel: mpsc::Receiver<String>,
+        rx_notification: mpsc::Receiver<Telemetry>,
+        rx_new_job: mpsc::Receiver<String>,
     ) -> Self {
         Self {
             jobs: HashMap::new(),
@@ -60,8 +60,8 @@ impl JobScheduler {
             finishing_job: None,
             last_running_job_index: 0,
             messenger,
-            notification,
-            ch_new_job: rx_channel,
+            ch_notification: rx_notification,
+            ch_new_job: rx_new_job,
         }
     }
 
@@ -72,11 +72,11 @@ impl JobScheduler {
 
     fn _run(mut self) {
         loop {
-            if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(100)) {
+            if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
                 info!("Receive new job: {new_job}");
             }
 
-            if let Ok(notif) = self.notification.recv_timeout(Duration::from_millis(100)) {
+            if let Ok(notif) = self.ch_notification.recv_timeout(Duration::from_millis(10)) {
                 self.handle_notification(notif);
             }
 

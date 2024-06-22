@@ -11,12 +11,12 @@ pub struct HTTPServer {
 }
 
 impl HTTPServer {
-    pub fn new(host: &str, port: u16, tx_channel: mpsc::Sender<String>) -> Self {
+    pub fn new(host: &str, port: u16, tx_new_job: mpsc::Sender<String>) -> Self {
         let listener = TcpListener::bind(format!("{host}:{port}")).unwrap();
         info!("Bind {host} on port {port}");
         Self {
             listener,
-            ch_new_job: tx_channel,
+            ch_new_job: tx_new_job,
         }
     }
 
