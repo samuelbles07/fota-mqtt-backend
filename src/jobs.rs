@@ -136,7 +136,7 @@ impl JobScheduler {
         // Get job that still on queue.
         // Only get reference since, needs to process it first before removing it from the queue
         let Some(job_id) = self.on_queue.pop_front() else {
-            debug!("No job in the queue");
+            trace!("No job in the queue");
             return Ok(());
         };
 
@@ -156,9 +156,13 @@ impl JobScheduler {
                 job.image = data;
                 // Send fota request command to target device
                 // TODO: Send hash too
-                let tosend =
-                    telemetry::build_command(job_id, &job.device_id, CommandType::OtaRequest)
-                        .unwrap(); // TODO: handle error
+                let tosend = telemetry::build_command(
+                    job_id,
+                    &job.device_id,
+                    CommandType::OtaRequest,
+                    &job.image.hash,
+                )
+                .unwrap(); // TODO: handle error
                 let _ = self.messenger.send(tosend); // TODO: Handle error
                 debug!("fota request is sent to {}", job.device_id);
 
@@ -228,7 +232,12 @@ impl JobScheduler {
 
                 // Finishing the job
                 info!("Finishing job {job_id}");
-                let tosend = telemetry::build_command(job_id, &job.device_id, CommandType::OtaDone);
+                let tosend = telemetry::build_command(
+                    job_id,
+                    &job.device_id,
+                    CommandType::OtaDone,
+                    &Vec::new(), // Just send empty vector, done command don't need image hash in the payload
+                );
                 let _ = self.messenger.send(tosend.unwrap());
                 // remove job from running list and change job status on hashmap
                 job.status = JobStatus::Finishing;

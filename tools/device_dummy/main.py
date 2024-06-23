@@ -41,7 +41,8 @@ def handle_command(topic: str, payload: bytes) -> Optional[tuple[str, bytes]]:
     response_command = None
     print("\n-----------------------")
     try:
-        print(f"JobId: {data[0]}")
+        print(f"JobId \t: {data[0]}")
+        print(f"Image Hash : {data[2]}")
         match data[1]:
             case CommandType.OTA_REQUEST.value:
                 print("Command is {}".format(CommandType.OTA_REQUEST))

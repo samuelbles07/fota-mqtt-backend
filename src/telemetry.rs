@@ -1,4 +1,5 @@
 use crate::jobs::JobId;
+use ciborium::{de, ser};
 use std::error::Error;
 use std::io::Cursor;
 
@@ -33,20 +34,19 @@ impl From<u8> for CommandType {
     }
 }
 
-type CommandPayload = (JobId, u8); // u8 is CommandType as u8
-
 pub fn build_command(
     job_id: JobId,
     device_id: &String,
     cmd: CommandType,
+    image_hash: &Vec<u8>,
 ) -> Result<Telemetry, Box<dyn Error>> {
     // Format topic
     let topic: String = format!("/fota/cmd/{device_id}");
 
     // Encode payload to cbor
-    let payload: CommandPayload = (job_id, cmd as u8);
+    let payload = (job_id, cmd as u8, image_hash);
     let mut buff = Vec::new();
-    ciborium::ser::into_writer(&payload, &mut buff)?;
+    ser::into_writer(&payload, &mut buff)?;
 
     // Build telemetry data
     let payload = Telemetry {
@@ -77,7 +77,8 @@ pub fn parse(tlm: Telemetry) -> Result<(JobId, CommandType), Box<dyn Error>> {
     // let topic_path: Vec<&str> = tlm.topic.split("/").collect();
     // TODO: Define type later either command or chunk. If not for command directly return
 
-    let deserialized: CommandPayload = ciborium::de::from_reader(&mut Cursor::new(tlm.payload))?;
+    // (jobId, CommandType)
+    let deserialized: (JobId, u8) = de::from_reader(&mut Cursor::new(tlm.payload))?;
     let parsed = (deserialized.0, CommandType::from(deserialized.1));
     debug!("Parsed notification: {:?}", parsed);
     Ok(parsed)
