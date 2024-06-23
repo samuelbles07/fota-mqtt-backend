@@ -294,14 +294,19 @@ impl JobScheduler {
                 };
 
                 match parsed.1 {
-                    CommandType::OtaDoneSuccess => job.status = JobStatus::Success,
-                    CommandType::OtaDoneFailed => job.status = JobStatus::Failed,
+                    CommandType::OtaDoneSuccess => {
+                        job.status = JobStatus::Success;
+                        info!("Job {} is SUCCESS", job.job_id);
+                    }
+                    CommandType::OtaDoneFailed => {
+                        job.status = JobStatus::Failed;
+                        warn!("Job {} is FAILED", job.job_id);
+                    }
                     _ => return, // TODO: What happen here,
                 }
 
                 // Whatever the result, consider it finish
                 self.finishing_job = None;
-                info!("Job {} is {:?}", job.job_id, job.status);
             }
         }
     }
