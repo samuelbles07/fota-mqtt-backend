@@ -1,3 +1,4 @@
+import time
 import random
 import argparse
 from typing import Any, Optional
@@ -35,35 +36,37 @@ def on_message(client: mqtt.Client, userdata: Queue, msg: mqtt.MQTTMessage):
 
 def handle_command(topic: str, payload: bytes) -> Optional[tuple[str, bytes]]: 
     # Decode payload
-    data = cbor.loads(payload)
-
-    print("\n-----------------------")
-    print(f"JobId: {data[0]}")
+    data = cbor.loads(payload) # [job_id, command]
 
     response_command = None
-    match data[1]:
-        case CommandType.OTA_REQUEST.value:
-            print("Command is {}".format(CommandType.OTA_REQUEST))
-            print("Pick response: ")
-            print("1. OTA_REQUEST_ACK")
-            print("2. OTA_REQUEST_NACK")
-            pick = int(input())
-            if pick == 1:
-                response_command = CommandType.OTA_REQUEST_ACK.value
-            elif pick == 2:
-                response_command = CommandType.OTA_REQUEST_ACK.value
-        case CommandType.OTA_DONE.value:
-            print("Command is {}".format(CommandType.OTA_DONE))
-            print("Pick response: ")
-            print("1. OTA_DONE_SUCCESS")
-            print("2. OTA_DONE_FAILED")
-            pick = int(input())
-            if pick == 1:
-                response_command = CommandType.OTA_DONE_SUCCESS.value
-            elif pick == 2:
-                response_command = CommandType.OTA_DONE_FAILED.value
-        case _:
-            pass
+    print("\n-----------------------")
+    try:
+        print(f"JobId: {data[0]}")
+        match data[1]:
+            case CommandType.OTA_REQUEST.value:
+                print("Command is {}".format(CommandType.OTA_REQUEST))
+                print("Pick response: ")
+                print("1. OTA_REQUEST_ACK")
+                print("2. OTA_REQUEST_NACK")
+                pick = int(input())
+                if pick == 1:
+                    response_command = CommandType.OTA_REQUEST_ACK.value
+                elif pick == 2:
+                    response_command = CommandType.OTA_REQUEST_ACK.value
+            case CommandType.OTA_DONE.value:
+                print("Command is {}".format(CommandType.OTA_DONE))
+                print("Pick response: ")
+                print("1. OTA_DONE_SUCCESS")
+                print("2. OTA_DONE_FAILED")
+                pick = int(input())
+                if pick == 1:
+                    response_command = CommandType.OTA_DONE_SUCCESS.value
+                elif pick == 2:
+                    response_command = CommandType.OTA_DONE_FAILED.value
+            case _:
+                pass
+    except Exception as e:
+        print(e)
 
     # Make sure not empty
     if response_command is None:
@@ -75,7 +78,7 @@ def handle_command(topic: str, payload: bytes) -> Optional[tuple[str, bytes]]:
     # Encode payload
     resp_payload = cbor.dumps( [data[0], response_command] )
 
-    # Remake topic
+    # Remake topic as response topic
     resp_topic = topic.replace("cmd", "cmd_resp") 
 
     return (resp_topic, resp_payload)
@@ -84,10 +87,13 @@ def handle_command(topic: str, payload: bytes) -> Optional[tuple[str, bytes]]:
 def is_request_data(topic: str) -> bool:
     ''' Check if topic is for binary chunk
     '''
-    split = topic.split("/")
-    # print(split)
-    if split[2] == "data":
-        return True
+    try:
+        split = topic.split("/")
+        # print(split)
+        if split[2] == "data":
+            return True
+    except Exception as e:
+        print(e)
 
     return False
 
@@ -124,13 +130,16 @@ if __name__ == "__main__":
 
     while True:
         try:
+            # Will wait until something in the queue
             topic, payload = downlink_queue.get()
+            # Handle command and get result
             if (result := handle_command(topic, payload)) is None:
                 # If request command unknown, will not respond downlink
                 continue
             # Send response
             topic, payload = result 
             mqtt_client.publish(topic, payload, qos=1)
+            time.sleep(.05)
         except KeyboardInterrupt:
             break 
 
