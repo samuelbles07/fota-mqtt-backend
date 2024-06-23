@@ -221,7 +221,7 @@ impl JobScheduler {
                 // Send fota request command to target device
                 debug!("data of {} => {:?}", job_id, job.image.last_bytes_index);
                 let tosend =
-                    telemetry::build_packet(&job.device_id, job.image.last_bytes_index, chunk);
+                    telemetry::build_packet(&job.device_id, job.image.current_chunk_id, chunk);
                 let _ = self.messenger.send(tosend); // TODO: Handle error
             }
             None => {

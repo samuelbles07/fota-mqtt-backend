@@ -9,8 +9,9 @@ const CHUNK_SIZE: u16 = 5;
 #[derive(Debug, Default)]
 pub struct BinaryData {
     pub data: Bytes,
-    pub last_bytes_index: u16,
     pub hash: Vec<u8>,
+    pub current_chunk_id: u16,
+    pub last_bytes_index: u16,
 }
 
 impl Iterator for BinaryData {
@@ -34,6 +35,11 @@ impl Iterator for BinaryData {
             .data
             .slice(self.last_bytes_index as usize..until as usize);
         self.last_bytes_index = until;
+
+        // Calculate chunk_id
+        let tmp: f32 = self.last_bytes_index as f32 / CHUNK_SIZE as f32;
+        self.current_chunk_id = tmp.ceil() as u16;
+
         Some(data)
     }
 }
@@ -48,6 +54,7 @@ pub fn download_binary(url: &String) -> Result<BinaryData, Box<dyn Error>> {
             Ok(BinaryData {
                 data: Bytes::from(data),
                 last_bytes_index: 0,
+                current_chunk_id: 0,
                 hash,
             })
         }
