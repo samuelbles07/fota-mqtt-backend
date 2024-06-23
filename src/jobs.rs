@@ -101,7 +101,7 @@ impl JobScheduler {
 
             // Give cpu/thread some breath when no job in running status
             let Some(next_job_id) = self.get_next_job() else {
-                debug!("No running job exists");
+                trace!("No running job exists");
                 thread::sleep(time::Duration::from_secs(1));
                 continue;
             };
@@ -129,7 +129,7 @@ impl JobScheduler {
         );
 
         self.on_queue.push_back(job_id);
-        info!("New job added {:#?}", self.jobs.get(&job_id));
+        trace!("New job added {:#?}", self.jobs.get(&job_id));
     }
 
     fn start_job_onqueue(&mut self) -> Result<(), CustomError> {
@@ -148,18 +148,33 @@ impl JobScheduler {
             )));
         };
 
-        // Send fota request command to target device
-        let tosend =
-            telemetry::build_command(job_id, &job.device_id, CommandType::OtaRequest).unwrap(); // TODO: handle error
-        let _ = self.messenger.send(tosend); // TODO: Handle error
-        debug!("fota request is sent to {}", job.device_id);
+        // Attempt to download the binary from url provided
+        debug!("Attempt download binary image of job {job_id}");
+        match download_binary(&job.url) {
+            Ok(data) => {
+                // Now the binary already on the heap (BinaryData) and ready to chunked
+                job.image = data;
+                // Send fota request command to target device
+                // TODO: Send hash too
+                let tosend =
+                    telemetry::build_command(job_id, &job.device_id, CommandType::OtaRequest)
+                        .unwrap(); // TODO: handle error
+                let _ = self.messenger.send(tosend); // TODO: Handle error
+                debug!("fota request is sent to {}", job.device_id);
 
-        // Set the job as starting, also change the status on the real data
-        self.starting_job = Some(job_id);
-        job.status = JobStatus::Starting;
-        info!("Job {job_id} is starting");
+                // Set the job as starting, also change the status on the real data
+                self.starting_job = Some(job_id);
+                job.status = JobStatus::Starting;
+                info!("Job {job_id} is starting");
 
-        Ok(())
+                Ok(())
+            }
+            Err(msg) => {
+                warn!("Download file failed for {job_id} ({msg})");
+                self.failed_job(job_id, "download firmware binary failed");
+                Err(CustomError::StartJob(String::from("Failed download")))
+            }
+        }
     }
 
     fn start_job(&mut self, job_id: JobId) {
@@ -168,29 +183,16 @@ impl JobScheduler {
             return; // TODO: Better error
         };
 
-        // Attempt to download the binary from url provided
-        match download_binary(&job.url) {
-            Ok(data) => {
-                // Now the binary already on the heap (BinaryData) and ready to chunked
-                job.image = data;
-                // Add the job to running index list
-                self.running.push(job_id.clone());
-                // Reset starting job to empty
-                self.starting_job = None;
-                // Change the actual job data status to in progres
-                job.status = JobStatus::InProgress;
-                info!("Job {job_id} now in progress");
+        // Add the job to running index list
+        self.running.push(job_id.clone());
+        // Reset starting job to empty
+        self.starting_job = None;
+        // Change the actual job data status to in progres
+        job.status = JobStatus::InProgress;
+        info!("Job {job_id} now in progress");
 
-                // Set the last time job is processed
-                job.last_time_processed = Instant::now();
-
-                // Ok(())
-            }
-            Err(msg) => {
-                warn!("Download file failed for {job_id} ({msg})");
-                self.failed_job(job_id, "download firmware binary failed");
-            }
-        }
+        // Set the last time job is processed
+        job.last_time_processed = Instant::now();
     }
 
     fn process_job(&mut self, job_id: JobId) {
