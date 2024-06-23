@@ -1,6 +1,7 @@
 use crate::custom_error::CustomError;
 use bytes::Bytes;
 use reqwest::StatusCode;
+use sha2::{Digest, Sha256};
 use std::error::Error;
 
 const CHUNK_SIZE: u16 = 5;
@@ -9,6 +10,7 @@ const CHUNK_SIZE: u16 = 5;
 pub struct BinaryData {
     pub data: Bytes,
     pub last_bytes_index: u16,
+    pub hash: Vec<u8>,
 }
 
 impl Iterator for BinaryData {
@@ -42,11 +44,46 @@ pub fn download_binary(url: &String) -> Result<BinaryData, Box<dyn Error>> {
     match body.status() {
         StatusCode::OK => {
             let data = body.bytes()?;
+            let hash = hash_image(&data);
             Ok(BinaryData {
                 data: Bytes::from(data),
                 last_bytes_index: 0,
+                hash,
             })
         }
         s => return Err(Box::new(CustomError::HttpRequest(s.as_u16()))),
+    }
+}
+
+fn hash_image(img: &Bytes) -> Vec<u8> {
+    let hash = Sha256::digest(img);
+    hash.to_vec()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hex_literal::hex;
+
+    #[test]
+    fn test_hash_image() {
+        let img = Bytes::from("Hello, world!");
+        let hash = hash_image(&img);
+
+        assert_eq!(
+            hash[..],
+            hex!["315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"]
+        )
+    }
+
+    #[test]
+    fn test_hash_image_failed() {
+        let img = Bytes::from("Hello, world?");
+        let hash = hash_image(&img);
+
+        assert_ne!(
+            hash[..],
+            hex!["315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3"]
+        )
     }
 }
