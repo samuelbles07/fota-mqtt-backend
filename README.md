@@ -109,6 +109,9 @@ For command request, payload is encoded using cbor, with plain text as follow
 
 #### Data
 
+Only 1 topic `/fota/data/{device_id}/{chunk_id}`. `chunk_id` is identifier for each chunk that is sent alongside the actual binary chunk in the payload. Binary chunk is not encoded, formatted or anything, just straight forward.
+
+> `chunk_id` will be used in the future for resume or resend purposes
 
 ### ENV Configuration
 
