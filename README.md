@@ -6,6 +6,9 @@ A simple backend service for managing Over-The-Air (OTA) firmware updates via MQ
 
 > This is my learning project while studying Rust. While error handling still bad, it already demonstrates how OTA firmware updates happen through MQTT. It's sufficient for testing and learning purposes. In the future, I plan to improve it for use in a production environment. 
 
+</br>
+
+
 ## How it works?
 
 ```mermaid
