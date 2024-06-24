@@ -1,7 +1,7 @@
 # Rocky
 
 <p align="center">
-  <img src="docs/rocky.png" alt="rocky-patrick"/>
+  <img src="docs/rocky.png" alt="rocky-patrick" style="padding:0px 0px"/>
 </p>
 
 ## Description
@@ -93,7 +93,7 @@ For command request, payload is encoded using cbor, with plain text as follow
 
 `[{job_id}, {command_type}, [{image_hash}]]`
 
-`image_hash` is device firmware binary hashed using sha256, so `image_hash` value is alwasy 32 bytes. Also, `image_hash` only send for command type `FOTA_REQUEST`.
+`image_hash` is device firmware binary hashed using sha256, so `image_hash` value is alwasy 32 bytes. Also, `image_hash` is only exist for command type `FOTA_REQUEST`.
 
 **Command Type**
 
@@ -107,8 +107,17 @@ For command request, payload is encoded using cbor, with plain text as follow
 |FOTA_DONE_FAILED|0x06 |`cmd_resp`|
 
 
+#### Data
+
+
+### ENV Configuration
+
+//TODO!
+
 ### Device Dummy
+
+//TODO!
 
 ## How to run
 
-blablabla
+//TODO!
