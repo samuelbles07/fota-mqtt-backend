@@ -1,10 +1,6 @@
 # Rocky
 
-<p align="center">
-  <img src="docs/rocky.png" alt="rocky-patrick" style="padding:0px 0px"/>
-</p>
-
-## Description
+<img align="right" src="docs/rocky.png" alt="Rocky logo">
 
 A simple backend service for managing Over-The-Air (OTA) firmware updates via MQTT written in rust. Designed as a job scheduler, it handles multiple firmware update requests simultaneously, with each job maintaining its own status. 
 
