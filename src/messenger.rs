@@ -4,6 +4,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use crate::settings::settings;
 use crate::telemetry::Telemetry;
 
 pub struct Messenger {
@@ -11,14 +12,13 @@ pub struct Messenger {
 }
 
 impl Messenger {
-    pub fn new(
-        tx_notification: mpsc::Sender<Telemetry>,
-        client_id: &str,
-        mqtt_host: &str,
-        mqtt_port: u16,
-    ) -> Self {
+    pub fn new(tx_notification: mpsc::Sender<Telemetry>) -> Self {
         // Configure mqtt connection
-        let mut mqtt_options = MqttOptions::new(client_id, mqtt_host, mqtt_port);
+        let mut mqtt_options = MqttOptions::new(
+            settings().mqtt_client_id.clone(),
+            settings().mqtt_host.clone(),
+            settings().mqtt_port,
+        );
         mqtt_options.set_keep_alive(Duration::from_secs(5));
         // TODO: Add last will if necessary later
 
