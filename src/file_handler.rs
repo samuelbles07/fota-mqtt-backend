@@ -1,10 +1,10 @@
-use crate::custom_error::CustomError;
 use bytes::Bytes;
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use std::error::Error;
 
-const CHUNK_SIZE: u16 = 5;
+use crate::custom_error::CustomError;
+use crate::settings::settings;
 
 #[derive(Debug, Default)]
 pub struct BinaryData {
@@ -18,13 +18,14 @@ impl Iterator for BinaryData {
     type Item = Bytes;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let chunk_size = settings().chunk_size_per_transmission;
         if self.last_bytes_index >= self.data.len() as u16 {
             debug!("No more data of the image");
             return None;
         }
 
-        let until = if self.last_bytes_index + CHUNK_SIZE < self.data.len() as u16 {
-            self.last_bytes_index + CHUNK_SIZE
+        let until = if self.last_bytes_index + chunk_size < self.data.len() as u16 {
+            self.last_bytes_index + chunk_size
         } else {
             // Get the last diff data
             debug!("Last image chunk");
@@ -37,7 +38,7 @@ impl Iterator for BinaryData {
         self.last_bytes_index = until;
 
         // Calculate chunk_id
-        let tmp: f32 = self.last_bytes_index as f32 / CHUNK_SIZE as f32;
+        let tmp: f32 = self.last_bytes_index as f32 / chunk_size as f32;
         self.current_chunk_id = tmp.ceil() as u16;
 
         Some(data)

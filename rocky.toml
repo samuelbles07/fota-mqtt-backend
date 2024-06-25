@@ -1,0 +1,16 @@
+# jobs
+job_max_running = 3
+job_processed_interval_ms = 200
+
+# file handler
+chunk_size_per_transmission = 5
+
+# http
+http_host = "127.0.0.1"
+http_port = 7777
+
+# mqtt
+mqtt_client_id = "rocky"
+mqtt_host = "broker.emqx.io"
+mqtt_port = 1883
+

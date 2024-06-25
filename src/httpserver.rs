@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::jobs::NewJob;
+use crate::settings::settings;
 
 #[derive(Debug)]
 pub struct HTTPServer {
@@ -13,9 +14,15 @@ pub struct HTTPServer {
 }
 
 impl HTTPServer {
-    pub fn new(host: &str, port: u16, tx_new_job: mpsc::Sender<NewJob>) -> Self {
-        let listener = TcpListener::bind(format!("{host}:{port}")).unwrap();
-        info!("Bind {host} on port {port}");
+    pub fn new(tx_new_job: mpsc::Sender<NewJob>) -> Self {
+        let listener =
+            TcpListener::bind(format!("{}:{}", settings().http_host, settings().http_port))
+                .unwrap();
+        info!(
+            "Bind {} on port {}",
+            settings().http_host,
+            settings().http_port
+        );
         Self {
             listener,
             ch_new_job: tx_new_job,

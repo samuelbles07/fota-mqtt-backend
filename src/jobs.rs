@@ -1,6 +1,7 @@
 use crate::custom_error::CustomError;
 use crate::file_handler::{download_binary, BinaryData};
 use crate::messenger::Messenger;
+use crate::settings::settings;
 use crate::telemetry::{self, CommandType, Telemetry};
 use core::time;
 use rand::Rng;
@@ -11,10 +12,6 @@ use std::{
     collections::{HashMap, VecDeque},
     thread,
 };
-
-// TODO: value from configuration
-const MAX_RUNNING_JOB: usize = 3;
-const JOB_PROCESSED_INTERVAL: Duration = Duration::from_millis(200); // Expected process interval for job
 
 #[derive(Debug, PartialEq, Eq)]
 enum JobStatus {
@@ -81,6 +78,7 @@ impl JobScheduler {
     }
 
     fn _run(mut self) {
+        let max_running_job: usize = settings().job_max_running.into();
         loop {
             if let Ok(new_job) = self.ch_new_job.recv_timeout(Duration::from_millis(10)) {
                 info!("Receive new job: {new_job:?}");
@@ -92,7 +90,7 @@ impl JobScheduler {
             }
 
             // Start job from on_queue job list if running list not in max number
-            if self.running.len() < MAX_RUNNING_JOB {
+            if self.running.len() < max_running_job {
                 if let Err(msg) = self.start_job_onqueue() {
                     error!("Starting job err ({msg})");
                     // TODO: do somekind of interval for checking this if statement
@@ -323,18 +321,24 @@ impl JobScheduler {
     }
 
     fn get_job_interval_delay(job_id: JobId, last_interval: Instant) -> Duration {
+        // Get configuratiion
+        let interval = Duration::from_millis(settings().job_processed_interval_ms);
+
+        // get last_interval elapsed
         let elapsed = last_interval.elapsed();
 
-        if JOB_PROCESSED_INTERVAL <= elapsed {
+        // Check if interval already passed
+        if interval <= elapsed {
             warn!(
                 "Job id {} interval missed by {:?}",
                 job_id,
-                elapsed - JOB_PROCESSED_INTERVAL
+                elapsed - interval
             );
             return Duration::new(0, 0);
         }
 
-        let dur = JOB_PROCESSED_INTERVAL - elapsed;
+        // return delay duration based on the elapsed
+        let dur = interval - elapsed;
         debug!("Job id {} early by {:?}", job_id, dur);
         dur
     }
