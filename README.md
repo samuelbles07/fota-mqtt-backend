@@ -113,10 +113,6 @@ Only 1 topic `/fota/data/{device_id}/{chunk_id}`. `chunk_id` is identifier for e
 
 Set configuration value in `rocky.toml`
 
-### Device Dummy
-
-//TODO!
-
 ## How to run
 
 //TODO!
