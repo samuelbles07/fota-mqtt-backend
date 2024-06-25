@@ -6,9 +6,6 @@ A simple backend service for managing Over-The-Air (OTA) firmware updates via MQ
 
 > This is my learning project while studying Rust. While error handling still bad, it already demonstrates how OTA firmware updates happen through MQTT. It's sufficient for testing and learning purposes. In the future, I plan to improve it for use in a production environment. 
 
-</br>
-
-
 ## How it works?
 
 ```mermaid
@@ -90,7 +87,7 @@ There are 2 command topic
 
 For command request, payload is encoded using cbor, with plain text as follow 
 
-`[{job_id}, {command_type}, [{image_hash}]]`
+`[{job_id<4 digit integer>}, {command_type<1byte>}, [{image_hash<32bytes>}]]`
 
 `image_hash` is device firmware binary hashed using sha256, so `image_hash` value is alwasy 32 bytes. Also, `image_hash` is only exist for command type `FOTA_REQUEST`.
 
@@ -112,9 +109,9 @@ Only 1 topic `/fota/data/{device_id}/{chunk_id}`. `chunk_id` is identifier for e
 
 > `chunk_id` will be used in the future for resume or resend purposes
 
-### ENV Configuration
+### Configuration
 
-//TODO!
+Set configuration value in `rocky.toml`
 
 ### Device Dummy
 

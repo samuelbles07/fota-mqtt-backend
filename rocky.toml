@@ -1,9 +1,9 @@
 # jobs
-job_max_running = 3
-job_processed_interval_ms = 200
+job_max_running = 3 # Maximum running job that will be processed before taking new job from quque 
+job_processed_interval_ms = 200 # Interval between job in millisecond
 
 # file handler
-chunk_size_per_transmission = 5
+chunk_size_per_transmission = 5 # chunk size of image binary that will be sent per transmission
 
 # http
 http_host = "127.0.0.1"
