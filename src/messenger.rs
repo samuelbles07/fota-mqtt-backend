@@ -62,7 +62,7 @@ impl Messenger {
                     topic: data.topic,
                     payload: data.payload.to_vec(),
                 };
-                info!("Incoming publish data: {:?}", notification);
+                debug!("Incoming publish data: {:?}", notification);
                 _ = notif.send(notification);
             }
             other => debug!("Incoming event {other:?}"),
