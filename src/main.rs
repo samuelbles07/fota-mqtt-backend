@@ -6,7 +6,6 @@ mod messenger;
 mod settings;
 mod telemetry;
 
-use lazy_static::lazy_static;
 use std::sync::mpsc;
 
 // pretty_env_logger related
@@ -15,10 +14,6 @@ extern crate pretty_env_logger;
 extern crate log;
 
 // Globalize config
-lazy_static! {
-    static ref CONFIG: settings::Settings = settings::Settings::new().unwrap();
-}
-
 fn main() {
     pretty_env_logger::init();
     info!("Starting fota service");

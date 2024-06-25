@@ -68,7 +68,6 @@ dependencies = [
  "ciborium",
  "config",
  "hex-literal",
- "lazy_static",
  "log",
  "pretty_env_logger",
  "rand",
