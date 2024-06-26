@@ -4,7 +4,7 @@
 
 A simple backend service for managing Over-The-Air (OTA) firmware updates via MQTT written in rust. Designed as a job scheduler, it handles multiple firmware update requests simultaneously, with each job maintaining its own status. 
 
-> This is my learning project while studying Rust. While error handling still bad, it already demonstrates how OTA firmware updates happen through MQTT. It's sufficient for testing and learning purposes. In the future, I plan to improve it for use in a production environment. 
+> This is my learning project while studying Rust. While error handling still bad, it already demonstrates how OTA firmware updates happen through MQTT. It's sufficient for testing and learning purposes. In the future, I plan to improve it for use in a production environment. And also a sample component to use for espressif device 🤞🏼
 
 ## How it works?
 
@@ -131,7 +131,8 @@ $ docker run -d --rm -p 7777:7777 -e RUST_LOG=info -v ${PWD}/rocky.toml:/rocky.t
 
 **Note**
 
-> Use device_dummy tools on `tools/device_dummy` to simulate the iot device end
+- Use device_dummy tools on `tools/device_dummy` to simulate the iot device end
+- For log level, see this crate [env_logger](https://docs.rs/env_logger/latest/env_logger/#enabling-logging)
 
 #### Request Sample
 
@@ -140,3 +141,18 @@ $ curl -X POST http://localhost:7878/job \
     --header "Content-Type: application/json" \
     --data '{"device_id":"musang", "url":"http://domain.com:7777/bin/test3.txt"}' -v
 ```
+
+- `device_id` → target device for this job 
+- `url` -> where rocky will download the device image firmware binary
+
+
+## Long Term Plan 
+
+- Proper web framework
+- Database integration to manage job 
+- Jobs scheduler using thread pool to execute jobs or other method 
+- TLS support for mqtt client and http server 
+- Better unit test coverage and integration test 
+- Removing direct call to `.unwrap()`, `let _`, etc. For better error handling.
+
+
