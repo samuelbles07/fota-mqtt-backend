@@ -87,7 +87,7 @@ There are 2 command topic
 
 For command request, payload is encoded using cbor, with plain text as follow 
 
-`[{job_id<4 digit integer>}, {command_type<1byte>}, [{image_hash<32bytes>}]]`
+`[ {job_id<4 digit integer>}, {command_type<1byte>}, [{image_hash<32byte array>}] ]`
 
 `image_hash` is device firmware binary hashed using sha256, so `image_hash` value is alwasy 32 bytes. Also, `image_hash` is only exist for command type `FOTA_REQUEST`.
 
@@ -115,4 +115,28 @@ Set configuration value in `rocky.toml`
 
 ## How to run
 
-//TODO!
+Just directly run like `$ RUST_LOG=info cargo run`, change log level as needed. Or if don't have rust environment, just use docker.
+
+**Build**
+
+```sh
+$ docker build -t rocky .
+```
+
+**Run**
+
+```sh 
+$ docker run -d --rm -p 7777:7777 -e RUST_LOG=info -v ${PWD}/rocky.toml:/rocky.toml --name rocky rocky
+```
+
+**Note**
+
+> Use device_dummy tools on `tools/device_dummy` to simulate the iot device end
+
+#### Request Sample
+
+```sh 
+$ curl -X POST http://localhost:7878/job \
+    --header "Content-Type: application/json" \
+    --data '{"device_id":"musang", "url":"http://domain.com:7777/bin/test3.txt"}' -v
+```

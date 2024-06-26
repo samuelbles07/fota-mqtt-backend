@@ -6,7 +6,7 @@ job_processed_interval_ms = 200 # Interval between processing job in millisecond
 chunk_size_per_transmission = 5 # chunk size of image binary that will be sent per transmission
 
 # http
-http_host = "127.0.0.1"
+http_host = "127.0.0.1" # Change this to 0.0.0.0 when running from docker to allow all connection
 http_port = 7777
 
 # mqtt
